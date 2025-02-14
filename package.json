@@ -1,0 +1,25 @@
+{
+  "name": "arcane-ai",
+  "version": "1.0.0",
+  "description": "Artificial Intelligent Platform ",
+  "main": "index.js",
+  "scripts": {
+    "test": "test"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/iamsourabh-in/arcane-aip.git"
+  },
+  "keywords": [
+    "https://github.com/iamsourabh-in/arcane-aip.git",
+    "Artificial",
+    "Intelligent",
+    "Platform"
+  ],
+  "author": "iamsourabh",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/iamsourabh-in/arcane-aip/issues"
+  },
+  "homepage": "https://github.com/iamsourabh-in/arcane-aip#readme"
+}
