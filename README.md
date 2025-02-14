@@ -1,15 +1,5 @@
 # arcane-aip
 
-I have a name for a project project arcane-aip, I want to build it about this project.
-
-Arcane-AIP is a Node.js based AI platform designed to provide advanced artificial intelligence capabilities within iOS applications. Leveraging the power of machine learning models, Arcane-AIP enables developers to incorporate intelligent features into their apps seamlessly. With support for various languages and frameworks like MetalML and CloudKit, Arcane-AIP offers flexibility and scalability for building sophisticated AI-powered solutions.
-
-# TechStack:
-Node Programming Language
-TypeScript
-Vs Code IDE
-Light ML Model(like ollama or hugging face)
-
 The request flow in Private Cloud Compute (PCC) involves multiple steps, from the user’s device to the PCC node and back. Here is a step-by-step description of the process: 
 
 1. Intelligence Orchestration: 
@@ -24,15 +14,19 @@ The request flow in Private Cloud Compute (PCC) involves multiple steps, from th
 ◦ This TGT is cryptographically unlinkable to the authentication information, ensuring anonymity. 
 • The client sends the TGT to the Token Granting Service (TGS), along with a request for One-Time Tokens (OTTs). 
 ◦ The TGS checks the validity of the TGT and may request updated fraud data from the client. 
-◦ If fraud data is required, the client gets updated data from the Fraud Detection Service (FDS) using blind signatures. ◦ The TGS returns a batch of OTTs after applying rate limits. • For each request to PCC, the client includes an OTT as proof of authorization. 
+◦ If fraud data is required, the client gets updated data from the Fraud Detection Service (FDS) using blind signatures. 
+◦ The TGS returns a batch of OTTs after applying rate limits. 
+• For each request to PCC, the client includes an OTT as proof of authorization. 
 ◦ The OTT is also built using RSA Blind Signatures, making it unlinkable to the batch request. 
 ◦ The PCC service verifies the OTT using its public key without learning any identifying information about the user or device. 
 
 3. Network Transport: 
 • All requests to PCC are routed through a third-party relay to conceal the source IP addresses. 
-◦ The client encrypts the request using Hybrid Public Key Encryption (HPKE) and the public key of Apple’s Oblivious Gateway (OG). ◦ The client randomly selects an Oblivious Relay (OR) operated by third parties (e.g., Cloudflare, Fastly). 
+◦ The client encrypts the request using Hybrid Public Key Encryption (HPKE) and the public key of Apple’s Oblivious Gateway (OG).
+◦ The client randomly selects an Oblivious Relay (OR) operated by third parties (e.g., Cloudflare, Fastly). 
 ◦ The OR acts as a secure HTTP proxy, and the client communicates with it via HTTP/3 or HTTP/2. 
-◦ The client uses Publicly-Verifiable RSA Blind Signature Privacy Pass tokens to authenticate to both the OR and OG. • The keys used for Oblivious HTTP, TGT and OTT are published to a transparency log to mitigate targeting concerns. 
+◦ The client uses Publicly-Verifiable RSA Blind Signature Privacy Pass tokens to authenticate to both the OR and OG. 
+• The keys used for Oblivious HTTP, TGT and OTT are published to a transparency log to mitigate targeting concerns. 
 
 4. Attestation Prefetching: 
 • Before submitting a request, the user’s device can prefetch attestations from the PCC Gateway using Oblivious HTTP. 
@@ -89,3 +83,15 @@ The request flow in Private Cloud Compute (PCC) involves multiple steps, from th
 9. Response to Client: 
 • The client receives the encrypted response from the PCC node. 
 • The client is able to decrypt the response using the HPKE-derived key, because it knows which node sent the response. This detailed flow highlights the security and privacy measures taken at each step, including encryption, attestation, and the use of ephemeral keys..
+
+
+# Tech:
+```sh
+    run_service "token-granting-service" "tokenGrantingService.js" "Token Granting Service.js" // 5002
+    run_service "identity-service" "identityService.js" "Identity Service" // 5001
+    run_service "node-llm" "nodeLlmService.js" "Node-LLM Service" // 5005
+    run_service "oblivious-gateway" "obliviousGateway.js" "Oblivious Gateway" 5004
+    run_service "relay-service" "relayService.js" "Relay Service" 5003
+    run_service "client" "client.js" "Client" 5000
+
+```
