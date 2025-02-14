@@ -22,9 +22,10 @@ async function fetchNodeLlmPublicKey() {
 
 async function sendForInference(data) {
     try {
-        const response = await axios.post('http://localhost:5005/process-data', { data });
+        // send to Node LLm with timeout
+        return
     } catch (error) {
-        console.error('Error fetching Node-LLM public key:', error);
+        console.error('Error sending data to Node-LLM:', error);
     }
 }
 
@@ -73,18 +74,19 @@ function verifyOTT(ott) {
 }
 
 // Endpoint to handle encrypted requests
-app.post('/process-request', (req, res) => {
-    console.log(`Received request for ${req.url}`);
+app.post('/process-request', async (req, res) => {
+    console.log(`Gateway: Received request for ${req.url}`);
     const { encryptedData, ott } = req.body;
 
     // Verify the OTT
-    if (!verifyOTT(ott)) {
-        return res.status(403).json({ error: 'Invalid OTT' });
-    }
+    // if (!verifyOTT(ott)) {
+    //     return res.status(403).json({ error: 'Invalid OTT' });
+    // }
 
     try {
+        const reponse = await axios.post('http://localhost:5005/process-data', req.body, { timeout: 5000 });
         // Process the request and send a response
-        res.json(sendForInference(decryptedData));
+        res.json(reponse);
     } catch (error) {
         res.status(400).json({ error: 'Invalid encrypted data' });
     }

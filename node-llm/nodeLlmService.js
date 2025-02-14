@@ -1,6 +1,7 @@
 const express = require('express');
 const bodyParser = require('body-parser');
 const NodeRSA = require('node-rsa');
+const crypto = require('crypto');
 
 const app = express();
 app.use(bodyParser.json());
@@ -17,19 +18,36 @@ app.get('/public-key', (req, res) => {
 
 // Endpoint to process data received by the LLM
 app.post('/process-data', (req, res) => {
-    const { data } = req.body;
+    console.log(`Node-LLM Service: Received request for ${req.url}`);
+    const { encryptedData, wrappedDEK, iv, authTag, ott } = req.body;
+    const DEK = key.decrypt(wrappedDEK, 'base64');
+    console.log(DEK);
 
-    if (!data) {
-        return res.status(400).json({ error: 'No data provided' });
-    }
+    const data = decryptData(encryptedData, DEK, iv, authTag);
+    console.log(data);
 
-    // Simulate processing the data
-    const processedData = `Processed data: ${data}`;
-    console.log('Processing data:', data);
+    // if (!data) {
+    //     return res.status(400).json({ error: 'No data provided' });
+    // }
+
+    // // Simulate processing the data
+    // const processedData = `Processed data: ${data}`;
+    // console.log('Processing data:', data);
 
     // Return the processed data
-    res.json({ processedData });
+    res.json({ message: 'Data processed successfully' });
 });
+
+
+function decryptData(encryptedData, dek, iv, authTag) {
+    const decipher = crypto.createDecipheriv('aes-256-gcm', dek, Buffer.from(iv, 'base64'));
+    decipher.setAuthTag(Buffer.from(authTag, 'base64'));
+
+    let decrypted = decipher.update(encryptedData, 'base64', 'utf8');
+    decrypted += decipher.final('utf8');
+    return decrypted;
+}
+
 
 const PORT = process.env.PORT || 5005;
 app.listen(PORT, () => {

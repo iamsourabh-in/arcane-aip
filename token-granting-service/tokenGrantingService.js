@@ -53,7 +53,7 @@ app.post('/issue-ott', async (req, res) => {
 // Function to issue OTTs
 function issueOTTs(deviceId) {
     // Create a batch of OTTs (for simplicity, just encrypt the deviceId multiple times)
-    const otts = Array.from({ length: 5 }, () => key.encrypt(deviceId, 'base64'));
+    const otts = Array.from({ length: 5 }, () => key.encryptPrivate(deviceId, 'base64'));
     return otts;
 }
 
