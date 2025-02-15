@@ -27,7 +27,6 @@ app.use('/public-key', (req, res) => {
 
 // Route to proxy requests for processing
 app.use('/process-request', (req, res) => {
-    console.log("Relay : ", req.body);
     proxy.web(req, res, {
         target: 'http://localhost:5004/process-request',
         selfHandleResponse: false
@@ -41,7 +40,7 @@ proxy.on('proxyReq', (proxyReq, req) => {
     // Remove the x-forwarded-for header to hide the original IP address
     if (req.body) {
         const bodyData = JSON.stringify(req.body);
-        console.log("RElay -proxy", req.body);
+        console.log("Relay:", req.body);
         proxyReq.setHeader('Content-Length', Buffer.byteLength(bodyData));
         proxyReq.write(bodyData);
     }
