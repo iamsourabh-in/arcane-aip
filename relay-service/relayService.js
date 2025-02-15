@@ -41,7 +41,7 @@ proxy.on('proxyReq', (proxyReq, req) => {
     // Remove the x-forwarded-for header to hide the original IP address
     if (req.body) {
         const bodyData = JSON.stringify(req.body);
-        console.log("Relay-proxy", req.body);
+        console.log("RElay -proxy", req.body);
         proxyReq.setHeader('Content-Length', Buffer.byteLength(bodyData));
         proxyReq.write(bodyData);
     }

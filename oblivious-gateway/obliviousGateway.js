@@ -85,8 +85,9 @@ app.post('/process-request', async (req, res) => {
 
     try {
         const reponse = await axios.post('http://localhost:5005/process-data', req.body, { timeout: 5000 });
+        console.log(`Received response from Node-LLM:`, reponse.data);
         // Process the request and send a response
-        res.json(reponse);
+        res.json(reponse.data);
     } catch (error) {
         res.status(400).json({ error: 'Invalid encrypted data' });
     }
