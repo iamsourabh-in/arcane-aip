@@ -54,7 +54,6 @@ async function getTokens(authRequest) {
 
         // Unblind the TGT
         const tgt = unblindResponse(signedBlindedTGT, blindingFactor, identityPublicKey);
-        console.log('Unblinded TGT:', tgt);
 
         // Request OTTs from the Token Granting Service using the TGT
         const ottResponse = await axios.post(`${TOKEN_GRANTING_SERVICE_URL}/issue-ott`, { tgt });
@@ -103,12 +102,11 @@ async function sendRequestToRelay(ott) {
         const dek = generateDEK();
 
         // Encrypt the request data using the DEK
-        const requestData = 'Sensitive data to be processed';
+        const requestData = 'Hello from the client!';
         const { encryptedData, iv, authTag } = encryptData(requestData, dek);
 
         // Wrap the DEK using HPKE (simulated with RSA)
         const wrappedDEK = wrapDEK(dek, gatewayPublicKey);
-        console.log('wrappedDEK', dek);
         // Send the encrypted request and wrapped DEK to the relay service
         const response  = await axios.post(`${RELAY_SERVICE_URL}/process-request`, {
             encryptedData,
@@ -123,7 +121,7 @@ async function sendRequestToRelay(ott) {
         const decryptedResponse = decryptData(encryptedResponse, dek, responseIv, responseAuthTag);
 
         console.log('Decrypted response from Node LLM:', decryptedResponse);
-        
+
     } catch (error) {
         console.error('Error sending request to relay:', error);
     }
@@ -144,6 +142,7 @@ async function main() {
     }
 }
 
+// #region Fetch Public Keys functions
 // Function to fetch the updated public key from the identity service
 async function fetchIdentityPublicKey() {
     try {
@@ -179,5 +178,6 @@ async function fetchGatewayPublicKeyViaRelay() {
 // Fetch the gateway public key every hour
 fetchGatewayPublicKeyViaRelay(); // Initial fetch
 setInterval(fetchGatewayPublicKeyViaRelay, 3600000); // 1 hour in milliseconds
+// #endregion
 
 main();

@@ -1,7 +1,10 @@
-const express = require('express');
-const bodyParser = require('body-parser');
-const NodeRSA = require('node-rsa');
-const crypto = require('crypto');
+import express from 'express';
+import bodyParser from 'body-parser';
+import NodeRSA from 'node-rsa';
+import crypto from 'crypto';
+import ollama from 'ollama';
+
+
 
 const app = express();
 app.use(bodyParser.json());
@@ -17,7 +20,7 @@ app.get('/public-key', (req, res) => {
 });
 
 // Endpoint to process data received by the LLM
-app.post('/process-data', (req, res) => {
+app.post('/process-data', async (req, res) => {
     console.log(`Node-LLM Service: Received request for ${req.url}`);
     const { encryptedData, iv, authTag, wrappedDEK, ott } = req.body;
 
@@ -27,8 +30,10 @@ app.post('/process-data', (req, res) => {
     // Decrypt the data
     const decryptedData = decryptData(encryptedData, dek, iv, authTag);
     console.log('Decrypted data:', decryptedData);
-    const responseData = `Processed: ${decryptedData}`;
-   
+
+
+    const responseData = await processWithOllama(decryptedData);
+
     const { encryptedData: encryptedResponse, iv: responseIv, authTag: responseAuthTag } = encryptData(responseData, dek);
     // Return the processed data
     res.json({
@@ -62,6 +67,28 @@ function encryptData(data, dek) {
     const authTag = cipher.getAuthTag().toString('base64');
     return { encryptedData: encrypted, iv: iv.toString('base64'), authTag };
 }
+
+
+// New method to interact with the Ollama API
+async function processWithOllama(decryptedData) {
+    try {
+        const response = await ollama.chat({
+          model: 'llama3.2:1b',
+          messages: [{ role: 'user', content: decryptedData }],
+        })
+        return response.message.content;
+
+        // const ollama = new Ollama();
+        // await ollama.setModel("llama3.2:1b");
+        // var reponse =  await ollama.generate(decryptedData);
+        // return reponse;
+
+    } catch (error) {
+        console.error('Error interacting with Ollama API:', error);
+        throw error;
+    }
+}
+
 const PORT = process.env.PORT || 5005;
 app.listen(PORT, () => {
     console.log(`Node-LLM Service is running on port ${PORT}`);
