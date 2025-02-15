@@ -1,16 +1,63 @@
 const axios = require('axios');
-const NodeRSA = require('node-rsa');
 const crypto = require('crypto');
+const blindSignatures = require('blind-signatures');
+const NodeRSA = require('node-rsa');
+// Configuration (use environment variables or a config file in production)
+const IDENTITY_SERVICE_URL = process.env.IDENTITY_SERVICE_URL || 'http://localhost:5001';
+const TOKEN_GRANTING_SERVICE_URL = process.env.TOKEN_GRANTING_SERVICE_URL || 'http://localhost:5002';
+const RELAY_SERVICE_URL = process.env.RELAY_SERVICE_URL || 'http://localhost:5003';
 
 let gatewayPublicKey = '';
-async function getTokens(deviceId) {
-    try {
-        // Request a TGT from the Identity Service
-        const tgtResponse = await axios.post('http://localhost:5001/issue-tgt', { deviceId });
-        const tgt = tgtResponse.data.tgt;
+let identityPublicKey = '';
 
+// Function to blind the request using RSA blinding
+function blindRequest(message, publicKey) {
+    console.log('Public Key:', publicKey); // Debugging line to check public key structure
+
+    if (!publicKey || !publicKey.n || !publicKey.e) {
+        throw new Error('Invalid public key structure');
+    }
+
+    const messageHash = crypto.createHash('sha256').update(message).digest('hex');
+    const { blinded, r } = blindSignatures.blind({
+        message: messageHash,
+        N: publicKey.n,
+        E: publicKey.e
+    });
+    return { blindedMessage: blinded, blindingFactor: r };
+}
+
+// Function to unblind the signed response
+function unblindResponse(signedBlindedMessage, blindingFactor, publicKey) {
+    const unblinded = blindSignatures.unblind({
+        signed: signedBlindedMessage,
+        N: publicKey.n,
+        r: blindingFactor
+    });
+    return unblinded;
+}
+
+async function getTokens(authRequest) {
+    await fetchIdentityPublicKey();
+    console.log('Obtaining tokens using identity public key:', identityPublicKey);
+    try {
+        const { blindedMessage, blindingFactor } = blindRequest(authRequest.deviceId, identityPublicKey);
+
+        const blindedRequest = {
+            blindedMessage,
+            authcode: authRequest.authcode,
+            password: authRequest.password,
+        };
+        // Request a TGT from the Identity Service
+        const tgtResponse = await axios.post(`${IDENTITY_SERVICE_URL}/issue-tgt`, blindedRequest);
+        const signedBlindedTGT = tgtResponse.data.tgt;
+
+        // Unblind the TGT
+        const tgt = unblindResponse(signedBlindedTGT, blindingFactor, identityPublicKey);
+        console.log('Unblinded TGT:', tgt);
+        
         // Request OTTs from the Token Granting Service using the TGT
-        const ottResponse = await axios.post('http://localhost:5002/issue-ott', { tgt });
+        const ottResponse = await axios.post(`${TOKEN_GRANTING_SERVICE_URL}/issue-ott`, { tgt });
         const otts = ottResponse.data.otts;
 
         console.log('Obtained OTTs:', otts);
@@ -27,7 +74,7 @@ function generateDEK() {
 
 // Function to encrypt data using AES-GCM
 function encryptData(data, dek) {
-    const iv = crypto.randomBytes(12); // 96-bit IV
+    const iv = crypto.randomBytes(32); // 96-bit IV
     const cipher = crypto.createCipheriv('aes-256-gcm', dek, iv);
     let encrypted = cipher.update(data, 'utf8', 'base64');
     encrypted += cipher.final('base64');
@@ -41,8 +88,6 @@ function wrapDEK(dek, publicKey) {
     return key.encrypt(dek, 'base64');
 }
 
-
-
 async function sendRequestToRelay(ott) {
     try {
         // Generate a unique DEK for the request
@@ -54,9 +99,9 @@ async function sendRequestToRelay(ott) {
 
         // Wrap the DEK using HPKE (simulated with RSA)
         const wrappedDEK = wrapDEK(dek, gatewayPublicKey);
-
+        console.log('wrappedDEK', dek);
         // Send the encrypted request and wrapped DEK to the relay service
-        const response = await axios.post('http://localhost:5003/process-request', {
+        const response = await axios.post(`${RELAY_SERVICE_URL}/process-request`, {
             encryptedData,
             iv,
             authTag,
@@ -70,22 +115,47 @@ async function sendRequestToRelay(ott) {
 }
 
 async function main() {
-    const deviceId = 'device123';
-    const otts = await getTokens(deviceId);
+    const authRequest = { deviceId: 'device1', authcode: '123456', password: 'password123' };
 
-    if (otts && otts.length > 0) {
-        // Use the first OTT to send a request
-        await sendRequestToRelay(otts[0]);
+    try {
+        const otts = await getTokens(authRequest);
+
+        if (otts && otts.length > 0) {
+            console.log('Tokens retrieved successfully:', otts);
+            await sendRequestToRelay(otts[0]);
+        }
+    } catch (error) {
+        console.error('Error in the main flow:', error.message);
     }
 }
 
+// Function to fetch the updated public key from the identity service
+async function fetchIdentityPublicKey() {
+    try {
+        const response = await axios.get(`${IDENTITY_SERVICE_URL}/public-key`);
+        const { n, e } = response.data.publicKey;
+
+        if (!n || !e) {
+            throw new Error('Invalid public key structure');
+        }
+
+        identityPublicKey = {
+            n: n.toString(),
+            e: e.toString()
+        };
+
+        console.log('Updated identity public key:', identityPublicKey);
+    } catch (error) {
+        console.error('Error fetching identity public key:', error);
+    }
+}
 
 // Function to fetch the updated public key from the gateway
 async function fetchGatewayPublicKeyViaRelay() {
     try {
-        const response = await axios.get('http://localhost:5003/public-key');
+        const response = await axios.get(`${RELAY_SERVICE_URL}/public-key`);
         gatewayPublicKey = response.data.publicKey;
-        console.log('Updated gateway public key:', gatewayPublicKey);
+        console.log('Fetched gateway public key:', gatewayPublicKey);
     } catch (error) {
         console.error('Error fetching gateway public key:', error);
     }

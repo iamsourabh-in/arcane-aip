@@ -33,12 +33,16 @@ start_services() {
     echo "Starting all services..."
     > "$PID_FILE" # Clear the PID file
 
-    run_service "token-granting-service" "tokenGrantingService.js" "Token Granting Service"
-    run_service "identity-service" "identityService.js" "Identity Service"
     run_service "node-llm" "nodeLlmService.js" "Node-LLM Service"
+    sleep 1
+    run_service "token-granting-service" "tokenGrantingService.js" "Token Granting Service"
+    sleep 1
     run_service "oblivious-gateway" "obliviousGateway.js" "Oblivious Gateway"
+    sleep 1
+    run_service "identity-service" "identityService.js" "Identity Service"
+    sleep 1
     run_service "relay-service" "relayService.js" "Relay Service"
-
+    
     echo "All services are running."
 }
 

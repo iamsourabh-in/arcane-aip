@@ -3,7 +3,76 @@
 
 The request flow in Private Cloud Compute (PCC) involves several steps to ensure secure and efficient processing of user requests. It begins with Intelligence Orchestration, where a user invokes a Mobile Intelligence feature, triggering the modelmanagerd daemon on the device. The orchestration layer decides whether to use an on-device or server-based model. If a server-based model is needed, the request is passed to the privatecloudcomputed daemon, which communicates with PCC. The system may also prewarm the device for intelligence requests by prefetching attestations.
 
-Next, during Client Authentication, the user’s device authenticates with the PCC Identity Service to obtain a Token Granting Token (TGT). The PCC Identity Service verifies the device and user eligibility and issues the TGT using RSA Blind Signatures, ensuring anonymity. The client then sends the TGT to the Token Granting Service (TGS) to request One-Time Tokens (OTTs). The TGS validates the TGT and may request updated fraud data from the client. Once validated, the TGS returns a batch of OTTs, which the client includes in each request to PCC as proof of authorization.
+Next, during Client Authentication, the user’s device authenticates with the PCC Identity Service to obtain a Token Granting Token (TGT). The PCC Identity Service verifies the device and user eligibility and issues the TGT using RSA Blind Signatures, ensuring anonymity. 
+
+```js
+
+const NodeRSA = require('node-rsa');
+const bigInt = require('big-integer');
+const crypto = require('crypto');
+
+// Generate RSA keys
+const key = new NodeRSA({ b: 512 }); // 512-bit key for simplicity
+key.setOptions({ signingScheme: 'pkcs1' });
+
+const publicKey = key.exportKey('components-public');
+const privateKey = key.exportKey('components-private');
+
+// Extract key components
+const e = bigInt(publicKey.e); // Public exponent
+const n = bigInt(publicKey.n); // Modulus
+const d = bigInt(privateKey.d); // Private exponent
+
+// Original message (string)
+const messageString = 'Hello, RSA Blind Signatures!';
+
+// Hash the message to convert it into a numerical format
+const messageHash = bigInt(
+  crypto.createHash('sha256').update(messageString).digest('hex'),
+  16
+);
+
+// Ensure the hash is smaller than the modulus
+if (messageHash.compare(n) >= 0) {
+  throw new Error('Message hash is too large for the modulus.');
+}
+
+console.log('Original Message:', messageString);
+console.log('Message Hash:', messageHash.toString());
+
+// 1. Requester: Generate a random blinding factor
+const r = bigInt.randBetween(1, n.minus(1)); // Random number < n
+const rPowE = r.modPow(e, n); // Compute r^e mod n
+
+// 2. Requester: Blind the message
+const blindedMessage = messageHash.multiply(rPowE).mod(n); // M_b = M * r^e mod n
+console.log('Blinded Message:', blindedMessage.toString());
+
+// 3. Signer: Sign the blinded message
+const blindedSignature = blindedMessage.modPow(d, n); // S_b = M_b^d mod n
+console.log('Blinded Signature:', blindedSignature.toString());
+
+// 4. Requester: Unblind the signature
+const rInverse = r.modInv(n); // Compute r^-1 mod n
+const signature = blindedSignature.multiply(rInverse).mod(n); // S = S_b * r^-1 mod n
+console.log('Unblinded Signature:', signature.toString());
+
+// 5. Verify the signature
+const verifiedMessage = signature.modPow(e, n); // Verify S^e mod n == M
+console.log('Verified Message Hash:', verifiedMessage.toString());
+
+// Check if verification matches the original message hash
+if (verifiedMessage.equals(messageHash)) {
+  console.log('Signature is valid!');
+} else {
+  console.log('Signature is invalid!');
+}
+
+
+```
+
+
+The client then sends the TGT to the Token Granting Service (TGS) to request One-Time Tokens (OTTs). The TGS validates the TGT and may request updated fraud data from the client. Once validated, the TGS returns a batch of OTTs, which the client includes in each request to PCC as proof of authorization.
 
 In the Network Transport step, all requests to PCC are routed through a third-party relay to conceal the source IP addresses. The client encrypts the request using Hybrid Public Key Encryption (HPKE) and the public key of Apple’s Oblivious Gateway (OG). The client selects an Oblivious Relay (OR) operated by third parties, which acts as a secure HTTP proxy. The client uses Publicly-Verifiable RSA Blind Signature Privacy Pass tokens to authenticate to both the OR and OG. The keys used for Oblivious HTTP, TGT, and OTT are published to a transparency log to mitigate targeting concerns.
 

@@ -19,35 +19,34 @@ app.get('/public-key', (req, res) => {
 // Endpoint to process data received by the LLM
 app.post('/process-data', (req, res) => {
     console.log(`Node-LLM Service: Received request for ${req.url}`);
-    const { encryptedData, wrappedDEK, iv, authTag, ott } = req.body;
-    const DEK = key.decrypt(wrappedDEK, 'base64');
-    console.log(DEK);
+    const { encryptedData, iv, authTag, wrappedDEK, ott } = req.body;
 
-    const data = decryptData(encryptedData, DEK, iv, authTag);
-    console.log(data);
+    // Unwrap the DEK
+    const dek = unwrapDEK(wrappedDEK, privateKey);
 
-    // if (!data) {
-    //     return res.status(400).json({ error: 'No data provided' });
-    // }
-
-    // // Simulate processing the data
-    // const processedData = `Processed data: ${data}`;
-    // console.log('Processing data:', data);
+    // Decrypt the data
+    const decryptedData = decryptData(encryptedData, dek, iv, authTag);
+    console.log('Decrypted data:', decryptedData);
 
     // Return the processed data
-    res.json({ message: 'Data processed successfully' });
+    res.json({ message: 'Data processed successfully', decryptedData });
 });
 
 
+// Function to unwrap the DEK using the gateway's private key
+function unwrapDEK(wrappedDEK, privateKey) {
+    const key = new NodeRSA(privateKey);
+    return key.decrypt(wrappedDEK, 'buffer');
+}
+
+// Function to decrypt data using AES-GCM
 function decryptData(encryptedData, dek, iv, authTag) {
     const decipher = crypto.createDecipheriv('aes-256-gcm', dek, Buffer.from(iv, 'base64'));
     decipher.setAuthTag(Buffer.from(authTag, 'base64'));
-
     let decrypted = decipher.update(encryptedData, 'base64', 'utf8');
     decrypted += decipher.final('utf8');
     return decrypted;
 }
-
 
 const PORT = process.env.PORT || 5005;
 app.listen(PORT, () => {

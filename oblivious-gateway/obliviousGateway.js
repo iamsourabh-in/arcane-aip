@@ -34,9 +34,9 @@ async function fetchTGSPublicKey() {
     try {
         const response = await axios.get('http://localhost:5002/public-key');
         TGTPublicKey = response.data.publicKey;
-        console.log('Updated Node-LLM public key:', nodeLlmPublicKey);
+        console.log('Updated TGS public key:', nodeLlmPublicKey);
     } catch (error) {
-        console.error('Error fetching Node-LLM public key:', error);
+        console.error('Error fetching TGS public key:', error);
     }
 }
 
