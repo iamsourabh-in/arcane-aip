@@ -4,7 +4,7 @@ import NodeRSA from 'node-rsa';
 import crypto from 'crypto';
 import ollama from 'ollama';
 
-
+let attestationBundle = {};
 
 const app = express();
 app.use(bodyParser.json());
@@ -73,8 +73,8 @@ function encryptData(data, dek) {
 async function processWithOllama(decryptedData) {
     try {
         const response = await ollama.chat({
-          model: 'llama3.2:1b',
-          messages: [{ role: 'user', content: decryptedData }],
+            model: 'llama3.2:1b',
+            messages: [{ role: 'user', content: decryptedData }],
         })
         return response.message.content;
 
@@ -88,6 +88,11 @@ async function processWithOllama(decryptedData) {
         throw error;
     }
 }
+function generateAttestationBundle() {
+    
+}
+
+generateAttestationBundle();
 
 const PORT = process.env.PORT || 5005;
 app.listen(PORT, () => {
