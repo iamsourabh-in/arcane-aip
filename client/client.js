@@ -55,7 +55,7 @@ async function getTokens(authRequest) {
         // Unblind the TGT
         const tgt = unblindResponse(signedBlindedTGT, blindingFactor, identityPublicKey);
         console.log('Unblinded TGT:', tgt);
-        
+
         // Request OTTs from the Token Granting Service using the TGT
         const ottResponse = await axios.post(`${TOKEN_GRANTING_SERVICE_URL}/issue-ott`, { tgt });
         const otts = ottResponse.data.otts;
@@ -70,6 +70,15 @@ async function getTokens(authRequest) {
 // Function to generate a unique Data Encryption Key (DEK)
 function generateDEK() {
     return crypto.randomBytes(32); // 256-bit key
+}
+
+// Function to decrypt data using AES-GCM
+function decryptData(encryptedData, dek, iv, authTag) {
+    const decipher = crypto.createDecipheriv('aes-256-gcm', dek, Buffer.from(iv, 'base64'));
+    decipher.setAuthTag(Buffer.from(authTag, 'base64'));
+    let decrypted = decipher.update(encryptedData, 'base64', 'utf8');
+    decrypted += decipher.final('utf8');
+    return decrypted;
 }
 
 // Function to encrypt data using AES-GCM
@@ -101,14 +110,20 @@ async function sendRequestToRelay(ott) {
         const wrappedDEK = wrapDEK(dek, gatewayPublicKey);
         console.log('wrappedDEK', dek);
         // Send the encrypted request and wrapped DEK to the relay service
-        const response = await axios.post(`${RELAY_SERVICE_URL}/process-request`, {
+        const response  = await axios.post(`${RELAY_SERVICE_URL}/process-request`, {
             encryptedData,
             iv,
             authTag,
             wrappedDEK,
             ott
         });
-        console.log('Response from relay:', response.data);
+
+        // Decrypt the response from the Node LLM service
+        const { encryptedData: encryptedResponse, iv: responseIv, authTag: responseAuthTag } = response.data;
+        const decryptedResponse = decryptData(encryptedResponse, dek, responseIv, responseAuthTag);
+
+        console.log('Decrypted response from Node LLM:', decryptedResponse);
+        
     } catch (error) {
         console.error('Error sending request to relay:', error);
     }
@@ -122,7 +137,7 @@ async function main() {
 
         if (otts && otts.length > 0) {
             console.log('Tokens retrieved successfully:', otts);
-            await sendRequestToRelay(otts[0]);
+            var response = await sendRequestToRelay(otts[0]);
         }
     } catch (error) {
         console.error('Error in the main flow:', error.message);

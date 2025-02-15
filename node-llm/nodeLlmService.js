@@ -27,9 +27,15 @@ app.post('/process-data', (req, res) => {
     // Decrypt the data
     const decryptedData = decryptData(encryptedData, dek, iv, authTag);
     console.log('Decrypted data:', decryptedData);
-
+    const responseData = `Processed: ${decryptedData}`;
+   
+    const { encryptedData: encryptedResponse, iv: responseIv, authTag: responseAuthTag } = encryptData(responseData, dek);
     // Return the processed data
-    res.json({ message: 'Data processed successfully', decryptedData });
+    res.json({
+        encryptedData: encryptedResponse,
+        iv: responseIv,
+        authTag: responseAuthTag
+    });
 });
 
 
@@ -47,7 +53,15 @@ function decryptData(encryptedData, dek, iv, authTag) {
     decrypted += decipher.final('utf8');
     return decrypted;
 }
-
+// Function to encrypt data using AES-GCM
+function encryptData(data, dek) {
+    const iv = crypto.randomBytes(12); // 96-bit IV
+    const cipher = crypto.createCipheriv('aes-256-gcm', dek, iv);
+    let encrypted = cipher.update(data, 'utf8', 'base64');
+    encrypted += cipher.final('base64');
+    const authTag = cipher.getAuthTag().toString('base64');
+    return { encryptedData: encrypted, iv: iv.toString('base64'), authTag };
+}
 const PORT = process.env.PORT || 5005;
 app.listen(PORT, () => {
     console.log(`Node-LLM Service is running on port ${PORT}`);
