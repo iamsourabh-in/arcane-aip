@@ -2,6 +2,8 @@ const axios = require('axios');
 const crypto = require('crypto');
 const blindSignatures = require('blind-signatures');
 const NodeRSA = require('node-rsa');
+const readline = require('readline');
+
 // Configuration (use environment variables or a config file in production)
 const IDENTITY_SERVICE_URL = process.env.IDENTITY_SERVICE_URL || 'http://localhost:5001';
 const TOKEN_GRANTING_SERVICE_URL = process.env.TOKEN_GRANTING_SERVICE_URL || 'http://localhost:5002';
@@ -96,36 +98,44 @@ function wrapDEK(dek, publicKey) {
     return key.encrypt(dek, 'base64');
 }
 
-async function sendRequestToRelay(ott) {
-    try {
-        // Generate a unique DEK for the request
+async function chatLoop(ott) {
+    const rl = readline.createInterface({
+        input: process.stdin,
+        output: process.stdout
+    });
+
+    rl.setPrompt('You: ');
+    rl.prompt();
+
+    rl.on('line', async (line) => {
         const dek = generateDEK();
-
-        // Encrypt the request data using the DEK
-        const requestData = 'Hello from the client!';
-        const { encryptedData, iv, authTag } = encryptData(requestData, dek);
-
-        // Wrap the DEK using HPKE (simulated with RSA)
+        const { encryptedData, iv, authTag } = encryptData(line, dek);
         const wrappedDEK = wrapDEK(dek, gatewayPublicKey);
-        // Send the encrypted request and wrapped DEK to the relay service
-        const response  = await axios.post(`${RELAY_SERVICE_URL}/process-request`, {
-            encryptedData,
-            iv,
-            authTag,
-            wrappedDEK,
-            ott
-        });
 
-        // Decrypt the response from the Node LLM service
-        const { encryptedData: encryptedResponse, iv: responseIv, authTag: responseAuthTag } = response.data;
-        const decryptedResponse = decryptData(encryptedResponse, dek, responseIv, responseAuthTag);
+        try {
+            const response = await axios.post(`${RELAY_SERVICE_URL}/process-request`, {
+                encryptedData,
+                iv,
+                authTag,
+                wrappedDEK,
+                ott
+            });
 
-        console.log('Decrypted response from Node LLM:', decryptedResponse);
+            const { encryptedData: encryptedResponse, iv: responseIv, authTag: responseAuthTag } = response.data;
+            const decryptedResponse = decryptData(encryptedResponse, dek, responseIv, responseAuthTag);
 
-    } catch (error) {
-        console.error('Error sending request to relay:', error);
-    }
+            console.log('Node LLM:', decryptedResponse);
+        } catch (error) {
+            console.error('Error sending request to relay:', error);
+        }
+
+        rl.prompt();
+    }).on('close', () => {
+        console.log('Chat session ended.');
+        process.exit(0);
+    });
 }
+
 
 async function main() {
     const authRequest = { deviceId: 'device1', authcode: '123456', password: 'password123' };
@@ -134,8 +144,8 @@ async function main() {
         const otts = await getTokens(authRequest);
 
         if (otts && otts.length > 0) {
-            console.log('Tokens retrieved successfully:', otts);
-            var response = await sendRequestToRelay(otts[0]);
+            await chatLoop(otts[0]);
+
         }
     } catch (error) {
         console.error('Error in the main flow:', error.message);
