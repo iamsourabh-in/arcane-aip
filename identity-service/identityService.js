@@ -23,22 +23,29 @@ app.get('/public-key', (req, res) => {
 
 // Endpoint to issue TGT
 app.post('/issue-tgt', (req, res) => {
-    console.log("Identity: Received Request for issue-tgt");
+
     const { blindedMessage } = req.body;
+    if (!blindedMessage) {
+        return res.status(400).json({ error: 'Blinded message is required' });
+    }
+    console.log("[Identity]: Received Request for issue-tgt", blindedMessage);
     // console.log("Identity: Blinded Message:", blindedMessage);
     // console.log("Identity: Blinded Message:", keyPair);
     // Verify device eligibility (placeholder logic)
     if (!isDeviceEligible(blindedMessage)) {
         return res.status(403).json({ error: 'Device not eligible' });
     }
-
-    // Sign the blinded message
-    const blindedSignature = blindSignatures.sign({
-        blinded: blindedMessage,
-        key: keyPair
-    });
-
-    res.json({ tgt: blindedSignature });
+    try {
+        // Sign the blinded message
+        const blindedSignature = blindSignatures.sign({
+            blinded: blindedMessage,
+            key: keyPair
+        });
+        res.json({ tgt: blindedSignature });
+    } catch (error) {
+        console.log("[Identity]:", error);
+        return res.status(500).json({ error: 'Error issuing TGT' });
+    }
 });
 
 // Function to verify device eligibility

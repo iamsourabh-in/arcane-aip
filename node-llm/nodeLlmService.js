@@ -2,7 +2,7 @@ import express from 'express';
 import bodyParser from 'body-parser';
 import NodeRSA from 'node-rsa';
 import dotenv from 'dotenv';
-import { unwrapDEK, decryptData, encryptData, generateAttestationBundle } from './helpers.js';
+import { unwrapDEK, decryptData, encryptData, verifySignature, generateAttestationBundle } from './helpers.js';
 import { processWithGPT, processWithGemini, processWithOllama } from './models.js';
 
 dotenv.config();
@@ -62,5 +62,5 @@ attestationBundle = generateAttestationBundle(publicKey);
 
 const PORT = process.env.PORT || 5005;
 app.listen(PORT, () => {
-    console.log(`[Node-LLM Service] Attested service is running on port ${PORT},${JSON.stringify(attestationBundle)}`);
+    console.log(`[Node-LLM Service] Attested service is running on port ${PORT}}`);
 });

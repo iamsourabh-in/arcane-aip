@@ -9,33 +9,35 @@ const IDENTITY_SERVICE_URL = process.env.IDENTITY_SERVICE_URL || 'http://localho
 const TOKEN_GRANTING_SERVICE_URL = process.env.TOKEN_GRANTING_SERVICE_URL || 'http://localhost:5002';
 const RELAY_SERVICE_URL = process.env.RELAY_SERVICE_URL || 'http://localhost:5003';
 
-let gatewayPublicKey = '';
+let nodeLlmPublicKey = '';
 let identityPublicKey = '';
 
-
-const getTokens = async (authRequest) => {
-   
+const getTGT = async (tgtRequest) => {
     try {
-        const { blindedMessage, blindingFactor } = blindRequest(authRequest.deviceId, identityPublicKey);
-
+        const { blindedMessage, blindingFactor } = blindRequest(tgtRequest.deviceId, identityPublicKey);
         const blindedRequest = {
             blindedMessage,
-            authcode: authRequest.authcode,
-            password: authRequest.password,
+            authcode: tgtRequest.authcode,
+            password: tgtRequest.password,
         };
-
         const tgtResponse = await axios.post(`${IDENTITY_SERVICE_URL}/issue-tgt`, blindedRequest);
         const signedBlindedTGT = tgtResponse.data.tgt;
+        return { signedBlindedTGT, blindingFactor };
+    } catch (error) {
+        throw new Error('Error obtaining TGT:', error);
+    }
+}
 
+const getOTTs = async (signedBlindedTGT, blindingFactor) => {
+
+    try {
         const tgt = unblindResponse(signedBlindedTGT, blindingFactor, identityPublicKey);
-
         const ottResponse = await axios.post(`${TOKEN_GRANTING_SERVICE_URL}/issue-ott`, { tgt });
         return ottResponse.data.otts;
     } catch (error) {
-        console.error('Error obtaining tokens:', error);
+        throw new Error('Error obtaining TGT:', error);
     }
 };
-
 
 const chatLoop = async (ott) => {
     const rl = readline.createInterface({
@@ -49,7 +51,7 @@ const chatLoop = async (ott) => {
     rl.on('line', async (line) => {
         const dek = generateDEK();
         const { encryptedData, iv, authTag } = encryptData(line, dek);
-        const wrappedDEK = wrapDEK(dek, gatewayPublicKey);
+        const wrappedDEK = wrapDEK(dek, nodeLlmPublicKey);
 
         try {
             const response = await axios.post(`${RELAY_SERVICE_URL}/process-request`, {
@@ -62,7 +64,6 @@ const chatLoop = async (ott) => {
 
             const { encryptedData: encryptedResponse, iv: responseIv, authTag: responseAuthTag } = response.data;
             const decryptedResponse = decryptData(encryptedResponse, dek, responseIv, responseAuthTag);
-
             console.log('Node LLM:', decryptedResponse);
         } catch (error) {
             console.error('Error sending request to relay:', error);
@@ -99,7 +100,6 @@ const unblindResponse = (signedBlindedMessage, blindingFactor, publicKey) => {
     });
 };
 
-
 // Function to generate a unique Data Encryption Key (DEK)
 const generateDEK = () => crypto.randomBytes(32); // 256-bit key
 
@@ -129,11 +129,13 @@ const wrapDEK = (dek, publicKey) => {
 };
 
 const main = async () => {
-    const authRequest = { deviceId: 'device1', authcode: '123456', password: 'password123' };
-
+    const tgtRequest = { deviceId: 'device1', authcode: '123456', password: 'password123' };
+    console.log('Blinded TGT:', tgtRequest);
     try {
-        const otts = await getTokens(authRequest);
-
+        let { signedBlindedTGT, blindingFactor } = await getTGT(tgtRequest);
+        console.log('Signed Blinded TGT:', signedBlindedTGT);
+        const otts = await getOTTs(signedBlindedTGT, blindingFactor);
+        console.log('Received OTTs:', otts);
         if (otts && otts.length > 0) {
             await chatLoop(otts[0]);
         }
@@ -166,8 +168,8 @@ const fetchIdentityPublicKey = async () => {
 const fetchGatewayPublicKeyViaRelay = async () => {
     try {
         const response = await axios.get(`${RELAY_SERVICE_URL}/public-key`);
-        gatewayPublicKey = response.data.publicKey;
-        console.log('Fetched gateway public key:', gatewayPublicKey);
+        nodeLlmPublicKey = response.data.publicKey;
+        console.log('Fetched gateway public key:', nodeLlmPublicKey);
     } catch (error) {
         console.error('Error fetching gateway public key:', error);
     }

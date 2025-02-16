@@ -1,6 +1,7 @@
 // helpers.js
 import NodeRSA from 'node-rsa';
 import crypto from 'crypto';
+import blindSignatures from 'blind-signatures';
 
 // Function to unwrap the DEK using the gateway's private key
 export function unwrapDEK(wrappedDEK, privateKey) {
@@ -17,6 +18,16 @@ export function decryptData(encryptedData, dek, iv, authTag) {
     return decrypted;
 }
 
+export const verifySignature = (message, signature, publicKey) => {
+    const messageHash = crypto.createHash('sha256').update(message).digest('hex');
+    const isValid = blindSignatures.verify({
+        unblinded: signature,
+        message: messageHash,
+        N: publicKey.n,
+        E: publicKey.e
+    });
+    return isValid;
+};
 // Function to encrypt data using AES-GCM
 export function encryptData(data, dek) {
     const iv = crypto.randomBytes(12); // 96-bit IV
