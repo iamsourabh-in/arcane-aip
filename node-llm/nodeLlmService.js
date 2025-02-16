@@ -3,6 +3,15 @@ import bodyParser from 'body-parser';
 import NodeRSA from 'node-rsa';
 import crypto from 'crypto';
 import ollama from 'ollama';
+import dotenv from 'dotenv';
+import { GoogleGenerativeAI } from '@google/generative-ai';
+
+
+dotenv.config();
+
+
+const genAI = new GoogleGenerativeAI(process.env.API_KEY);
+const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
 let attestationBundle = {};
 
@@ -30,9 +39,20 @@ app.post('/process-data', async (req, res) => {
     // Decrypt the data
     const decryptedData = decryptData(encryptedData, dek, iv, authTag);
     console.log('Decrypted data:', decryptedData);
-
-
-    const responseData = await processWithOllama(decryptedData);
+    var model_id = process.env.MODEL_ID
+    let responseData = "";
+    switch (model_id) {
+        case "gpt":
+            responseData = await processWithGPT(decryptedData);
+            break;
+        case "gemini":
+            responseData = await processWithGemini(decryptedData);
+            break;
+        case "ollama":
+        default:
+            responseData = await processWithOllama(decryptedData);
+            break;
+    }
 
     const { encryptedData: encryptedResponse, iv: responseIv, authTag: responseAuthTag } = encryptData(responseData, dek);
     // Return the processed data
@@ -43,6 +63,36 @@ app.post('/process-data', async (req, res) => {
     });
 });
 
+const processWithGPT = async (decryptedData) => {
+    try {
+        const prompt = decryptedData;
+
+        const result = await model.generateContent(prompt);
+        const response = await result.response;
+        const text = response.text();
+        return text;
+    }
+    catch (err) {
+        console.log(err);
+        res.send("Unexpected Error!!!");
+    }
+
+}
+const processWithGemini = async (decryptedData) => {
+    try {
+        const prompt = decryptedData;
+
+        const result = await model.generateContent(prompt);
+        const response = await result.response;
+        const text = response.text();
+        return text;
+    }
+    catch (err) {
+        console.log(err);
+        res.send("Unexpected Error!!!");
+    }
+
+}
 
 // Function to unwrap the DEK using the gateway's private key
 function unwrapDEK(wrappedDEK, privateKey) {
@@ -89,10 +139,12 @@ async function processWithOllama(decryptedData) {
     }
 }
 function generateAttestationBundle() {
-    
+
 }
 
 generateAttestationBundle();
+
+// console.log(await processWithGemini("Hi"));
 
 const PORT = process.env.PORT || 5005;
 app.listen(PORT, () => {

@@ -1,5 +1,11 @@
 #!/bin/bash
 
+# Add Command to set env variables which should be acciable by  process.env.IDENTITY_SERVICE_URL
+export IDENTITY_SERVICE_URL=http://localhost:5001
+export TOKEN_GRANTING_SERVICE_URL=http://localhost:5002
+export RELAY_SERVICE_URL=http://localhost:5003
+
+
 # Navigate to the project root directory
 cd "$(dirname "$0")"
 
@@ -34,15 +40,15 @@ start_services() {
     > "$PID_FILE" # Clear the PID file
 
     run_service "node-llm" "nodeLlmService.js" "Node-LLM Service"
-    sleep 1
+    sleep 2
     run_service "token-granting-service" "tokenGrantingService.js" "Token Granting Service"
-    sleep 1
+    sleep 2
     run_service "oblivious-gateway" "obliviousGateway.js" "Oblivious Gateway"
-    sleep 1
+    sleep 2
     run_service "identity-service" "identityService.js" "Identity Service"
-    sleep 1
+    sleep 2
     run_service "relay-service" "relayService.js" "Relay Service"
-    
+    sleep 2
     echo "All services are running."
 }
 
