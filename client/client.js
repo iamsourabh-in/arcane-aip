@@ -1,8 +1,8 @@
-const axios = require('axios');
-const crypto = require('crypto');
-const blindSignatures = require('blind-signatures');
-const NodeRSA = require('node-rsa');
-const readline = require('readline');
+import axios from 'axios';
+import crypto from 'crypto';
+import blindSignatures from 'blind-signatures';
+import NodeRSA from 'node-rsa';
+import readline from 'readline';
 
 // Configuration (use environment variables or a config file in production)
 const IDENTITY_SERVICE_URL = process.env.IDENTITY_SERVICE_URL || 'http://localhost:5001';
@@ -12,36 +12,9 @@ const RELAY_SERVICE_URL = process.env.RELAY_SERVICE_URL || 'http://localhost:500
 let gatewayPublicKey = '';
 let identityPublicKey = '';
 
-// Function to blind the request using RSA blinding
-function blindRequest(message, publicKey) {
-    console.log('Public Key:', publicKey); // Debugging line to check public key structure
 
-    if (!publicKey || !publicKey.n || !publicKey.e) {
-        throw new Error('Invalid public key structure');
-    }
-
-    const messageHash = crypto.createHash('sha256').update(message).digest('hex');
-    const { blinded, r } = blindSignatures.blind({
-        message: messageHash,
-        N: publicKey.n,
-        E: publicKey.e
-    });
-    return { blindedMessage: blinded, blindingFactor: r };
-}
-
-// Function to unblind the signed response
-function unblindResponse(signedBlindedMessage, blindingFactor, publicKey) {
-    const unblinded = blindSignatures.unblind({
-        signed: signedBlindedMessage,
-        N: publicKey.n,
-        r: blindingFactor
-    });
-    return unblinded;
-}
-
-async function getTokens(authRequest) {
-    await fetchIdentityPublicKey();
-    console.log('Obtaining tokens using identity public key:', identityPublicKey);
+const getTokens = async (authRequest) => {
+   
     try {
         const { blindedMessage, blindingFactor } = blindRequest(authRequest.deviceId, identityPublicKey);
 
@@ -50,55 +23,21 @@ async function getTokens(authRequest) {
             authcode: authRequest.authcode,
             password: authRequest.password,
         };
-        // Request a TGT from the Identity Service
+
         const tgtResponse = await axios.post(`${IDENTITY_SERVICE_URL}/issue-tgt`, blindedRequest);
         const signedBlindedTGT = tgtResponse.data.tgt;
 
-        // Unblind the TGT
         const tgt = unblindResponse(signedBlindedTGT, blindingFactor, identityPublicKey);
 
-        // Request OTTs from the Token Granting Service using the TGT
         const ottResponse = await axios.post(`${TOKEN_GRANTING_SERVICE_URL}/issue-ott`, { tgt });
-        const otts = ottResponse.data.otts;
-
-        console.log('Obtained OTTs:', otts);
-        return otts;
+        return ottResponse.data.otts;
     } catch (error) {
         console.error('Error obtaining tokens:', error);
     }
-}
+};
 
-// Function to generate a unique Data Encryption Key (DEK)
-function generateDEK() {
-    return crypto.randomBytes(32); // 256-bit key
-}
 
-// Function to decrypt data using AES-GCM
-function decryptData(encryptedData, dek, iv, authTag) {
-    const decipher = crypto.createDecipheriv('aes-256-gcm', dek, Buffer.from(iv, 'base64'));
-    decipher.setAuthTag(Buffer.from(authTag, 'base64'));
-    let decrypted = decipher.update(encryptedData, 'base64', 'utf8');
-    decrypted += decipher.final('utf8');
-    return decrypted;
-}
-
-// Function to encrypt data using AES-GCM
-function encryptData(data, dek) {
-    const iv = crypto.randomBytes(32); // 96-bit IV
-    const cipher = crypto.createCipheriv('aes-256-gcm', dek, iv);
-    let encrypted = cipher.update(data, 'utf8', 'base64');
-    encrypted += cipher.final('base64');
-    const authTag = cipher.getAuthTag().toString('base64');
-    return { encryptedData: encrypted, iv: iv.toString('base64'), authTag };
-}
-
-// Function to wrap the DEK using HPKE (simulated with RSA for simplicity)
-function wrapDEK(dek, publicKey) {
-    const key = new NodeRSA(publicKey);
-    return key.encrypt(dek, 'base64');
-}
-
-async function chatLoop(ott) {
+const chatLoop = async (ott) => {
     const rl = readline.createInterface({
         input: process.stdin,
         output: process.stdout
@@ -134,10 +73,62 @@ async function chatLoop(ott) {
         console.log('Chat session ended.');
         process.exit(0);
     });
-}
+};
+
+// Function to blind the request using RSA blinding
+const blindRequest = (message, publicKey) => {
+    if (!publicKey || !publicKey.n || !publicKey.e) {
+        throw new Error('Invalid public key structure');
+    }
+
+    const messageHash = crypto.createHash('sha256').update(message).digest('hex');
+    const { blinded, r } = blindSignatures.blind({
+        message: messageHash,
+        N: publicKey.n,
+        E: publicKey.e
+    });
+    return { blindedMessage: blinded, blindingFactor: r };
+};
+
+// Function to unblind the signed response
+const unblindResponse = (signedBlindedMessage, blindingFactor, publicKey) => {
+    return blindSignatures.unblind({
+        signed: signedBlindedMessage,
+        N: publicKey.n,
+        r: blindingFactor
+    });
+};
 
 
-async function main() {
+// Function to generate a unique Data Encryption Key (DEK)
+const generateDEK = () => crypto.randomBytes(32); // 256-bit key
+
+// Function to decrypt data using AES-GCM
+const decryptData = (encryptedData, dek, iv, authTag) => {
+    const decipher = crypto.createDecipheriv('aes-256-gcm', dek, Buffer.from(iv, 'base64'));
+    decipher.setAuthTag(Buffer.from(authTag, 'base64'));
+    let decrypted = decipher.update(encryptedData, 'base64', 'utf8');
+    decrypted += decipher.final('utf8');
+    return decrypted;
+};
+
+// Function to encrypt data using AES-GCM
+const encryptData = (data, dek) => {
+    const iv = crypto.randomBytes(12); // 96-bit IV
+    const cipher = crypto.createCipheriv('aes-256-gcm', dek, iv);
+    let encrypted = cipher.update(data, 'utf8', 'base64');
+    encrypted += cipher.final('base64');
+    const authTag = cipher.getAuthTag().toString('base64');
+    return { encryptedData: encrypted, iv: iv.toString('base64'), authTag };
+};
+
+// Function to wrap the DEK using HPKE (simulated with RSA for simplicity)
+const wrapDEK = (dek, publicKey) => {
+    const key = new NodeRSA(publicKey);
+    return key.encrypt(dek, 'base64');
+};
+
+const main = async () => {
     const authRequest = { deviceId: 'device1', authcode: '123456', password: 'password123' };
 
     try {
@@ -145,16 +136,14 @@ async function main() {
 
         if (otts && otts.length > 0) {
             await chatLoop(otts[0]);
-
         }
     } catch (error) {
         console.error('Error in the main flow:', error.message);
     }
-}
+};
 
 // #region Fetch Public Keys functions
-// Function to fetch the updated public key from the identity service
-async function fetchIdentityPublicKey() {
+const fetchIdentityPublicKey = async () => {
     try {
         const response = await axios.get(`${IDENTITY_SERVICE_URL}/public-key`);
         const { n, e } = response.data.publicKey;
@@ -172,10 +161,9 @@ async function fetchIdentityPublicKey() {
     } catch (error) {
         console.error('Error fetching identity public key:', error);
     }
-}
+};
 
-// Function to fetch the updated public key from the gateway
-async function fetchGatewayPublicKeyViaRelay() {
+const fetchGatewayPublicKeyViaRelay = async () => {
     try {
         const response = await axios.get(`${RELAY_SERVICE_URL}/public-key`);
         gatewayPublicKey = response.data.publicKey;
@@ -183,10 +171,9 @@ async function fetchGatewayPublicKeyViaRelay() {
     } catch (error) {
         console.error('Error fetching gateway public key:', error);
     }
-}
-
-// Fetch the gateway public key every hour
-fetchGatewayPublicKeyViaRelay(); // Initial fetch
+};
+await fetchIdentityPublicKey();
+await fetchGatewayPublicKeyViaRelay(); // Initial fetch
 setInterval(fetchGatewayPublicKeyViaRelay, 3600000); // 1 hour in milliseconds
 // #endregion
 

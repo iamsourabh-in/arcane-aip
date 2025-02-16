@@ -6,6 +6,11 @@ const NodeRSA = require('node-rsa');
 const app = express();
 app.use(bodyParser.json());
 
+// Generate RSA keys for the Oblivious Gateway
+const key = new NodeRSA({ b: 512 });
+const publicKey = key.exportKey('public');
+const privateKey = key.exportKey('private');
+
 let nodeLlmPublicKey = '';
 let TGTPublicKey = '';
 
@@ -13,37 +18,23 @@ let TGTPublicKey = '';
 async function fetchNodeLlmPublicKey() {
     try {
         const response = await axios.get('http://localhost:5005/public-key');
-        nodeLlmPublicKey = response.data.publicKey;
-        console.log('Updated Node-LLM public key:', nodeLlmPublicKey);
+        nodeLlmPublicKey = response.data.public_key;
+        console.log('[Gateway] Fetched Node-LLM public key:', nodeLlmPublicKey);
     } catch (error) {
-        console.error('Error fetching Node-LLM public key:', error);
+        console.error('[Gateway] Error fetching Node-LLM public key:', error);
     }
 }
-
-async function sendForInference(data) {
-    try {
-        // send to Node LLm with timeout
-        return
-    } catch (error) {
-        console.error('Error sending data to Node-LLM:', error);
-    }
-}
-
-
 async function fetchTGSPublicKey() {
     try {
         const response = await axios.get('http://localhost:5002/public-key');
         TGTPublicKey = response.data.publicKey;
-        console.log('Updated TGS public key:', nodeLlmPublicKey);
+        console.log('[Gateway] Fetched TGS public key:', nodeLlmPublicKey);
     } catch (error) {
         console.error('Error fetching TGS public key:', error);
     }
 }
 
-// Generate RSA keys for the Oblivious Gateway
-const key = new NodeRSA({ b: 512 });
-const publicKey = key.exportKey('public');
-const privateKey = key.exportKey('private');
+
 
 // Endpoint to expose the gateway's public key
 app.get('/public-key', (req, res) => {
