@@ -128,7 +128,7 @@ const wrapDEK = (dek, publicKey) => {
     return key.encrypt(dek, 'base64');
 };
 
-const main = async () => {
+const main = async () => { 
     const tgtRequest = { deviceId: 'device1', authcode: '123456', password: 'password123' };
     console.log('Blinded TGT:', tgtRequest);
     try {
